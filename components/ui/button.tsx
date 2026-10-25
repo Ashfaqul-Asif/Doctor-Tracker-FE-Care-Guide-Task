@@ -8,7 +8,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-primary text-primary-foreground shadow-sm hover:opacity-90',
+        // A flat fill reads as "default Bootstrap-blue button"; the gradient token gives
+        // the primary action a bit of presence without touching every other `bg-primary`
+        // use (badges, active nav state, focus rings) that still wants a single flat color.
+        primary:
+          'bg-[image:var(--primary-gradient)] text-primary-foreground shadow-sm hover:brightness-110',
         secondary: 'bg-card text-foreground border border-border shadow-sm hover:bg-accent',
         ghost: 'text-muted-foreground hover:bg-accent hover:text-foreground',
         destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',

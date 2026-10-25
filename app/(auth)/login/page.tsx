@@ -55,7 +55,10 @@ export default function LoginPage() {
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
       {/* Brand panel — hidden on small screens, where the form alone fills the page. */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-primary px-10 py-12 text-primary-foreground lg:flex">
+      <div
+        className="relative hidden flex-col justify-between overflow-hidden px-10 py-12 text-primary-foreground lg:flex"
+        style={{ backgroundImage: 'var(--primary-gradient)' }}
+      >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-40"
@@ -102,7 +105,10 @@ export default function LoginPage() {
       <div className="flex items-center justify-center px-4 py-10 sm:px-10">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-2 lg:hidden">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-md text-primary-foreground"
+              style={{ backgroundImage: 'var(--primary-gradient)' }}
+            >
               <Activity className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="text-sm font-semibold text-foreground">Doctor Tracker</span>

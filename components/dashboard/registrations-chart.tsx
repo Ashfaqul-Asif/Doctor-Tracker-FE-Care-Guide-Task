@@ -79,8 +79,12 @@ export function RegistrationsChart({
           <AreaChart data={points} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
             <defs>
               <linearGradient id="registrationsFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="var(--color-chart-2)" stopOpacity={0.03} />
+              </linearGradient>
+              <linearGradient id="registrationsStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="var(--color-chart-1)" />
+                <stop offset="100%" stopColor="var(--color-chart-2)" />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="var(--color-border)" />
@@ -105,9 +109,11 @@ export function RegistrationsChart({
             <Area
               type="monotone"
               dataKey="count"
-              stroke="var(--color-chart-1)"
-              strokeWidth={2}
+              stroke="url(#registrationsStroke)"
+              strokeWidth={2.5}
               fill="url(#registrationsFill)"
+              dot={{ r: 2.5, strokeWidth: 0, fill: 'var(--color-chart-1)' }}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--color-card)' }}
             />
           </AreaChart>
         </ResponsiveContainer>

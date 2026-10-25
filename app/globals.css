@@ -34,6 +34,11 @@
   --chart-1: #4f46e5;
   --chart-2: #d946a8;
 
+  /* A richer, non-flat fill for the handful of "hero" surfaces that should stand out —
+     the login brand panel and the primary button — without wiring a second color system.
+     Everything else keeps using the plain `--primary` token. */
+  --primary-gradient: linear-gradient(135deg, #4338ca 0%, #7c3aed 55%, #c026d3 100%);
+
   --radius: 0.875rem;
 }
 
@@ -66,6 +71,8 @@
 
     --chart-1: #818cf8;
     --chart-2: #f472b6;
+
+    --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a78bfa 55%, #e879f9 100%);
   }
 }
 

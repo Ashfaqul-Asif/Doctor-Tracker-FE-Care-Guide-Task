@@ -30,13 +30,15 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                // The left border is what makes "active" readable at a glance in a list
+                // this short — a background tint alone is easy to mistake for hover.
+                'flex items-center gap-3 rounded-md border-l-2 py-2.5 pr-3 pl-2.5 text-sm font-medium transition-colors',
                 active
-                  ? 'bg-primary-soft text-primary'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  ? 'border-primary bg-primary-soft text-primary'
+                  : 'border-transparent text-muted-foreground hover:border-border hover:bg-accent hover:text-foreground',
               )}
             >
-              <Icon className="h-4 w-4" aria-hidden="true" />
+              <Icon className={cn('h-4 w-4', active && 'text-primary')} aria-hidden="true" />
               {label}
             </Link>
           </li>
@@ -49,7 +51,10 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 function Brand() {
   return (
     <div className="flex items-center gap-2 px-3 py-4">
-      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+      <span
+        className="flex h-8 w-8 items-center justify-center rounded-md text-primary-foreground"
+        style={{ backgroundImage: 'var(--primary-gradient)' }}
+      >
         <Activity className="h-4 w-4" aria-hidden="true" />
       </span>
       <span className="text-sm font-semibold text-foreground">Doctor Tracker</span>
@@ -72,33 +77,38 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [pathname, setMobileNavOpen]);
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[240px_1fr]">
+    <div className="min-h-dvh lg:pl-60">
       <a href="#main" className="skip-link">
         Skip to content
       </a>
 
-      {/* Desktop sidebar */}
-      <aside className="hidden border-r border-border bg-card lg:block">
-        <div className="sticky top-0 flex h-dvh flex-col">
-          <Brand />
-          <nav aria-label="Main" className="flex-1 px-2">
-            <NavLinks />
-          </nav>
-          <div className="border-t border-border p-3">
-            <p className="truncate px-1 pb-2 text-xs text-muted-foreground" title={user?.email}>
-              {user?.email}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start"
-              onClick={() => logout.mutate()}
-              disabled={logout.isPending}
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-              Sign out
-            </Button>
-          </div>
+      {/*
+       * Fixed, not sticky-inside-a-grid-cell: a sticky block only follows the page for
+       * as long as its own column is as tall as the content beside it. CSS Grid stretches
+       * a bare `<aside>` to match the *row* height (i.e. the dashboard content's height),
+       * so on a page taller than one screen the sticky inner block would run out of room
+       * and slide away with the scroll, exposing blank space above the sign-out footer.
+       * `fixed` removes the sidebar from that layout entirely — it just stays put.
+       */}
+      <aside className="hidden border-r border-border bg-card lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-60 lg:flex-col">
+        <Brand />
+        <nav aria-label="Main" className="flex-1 overflow-y-auto px-2">
+          <NavLinks />
+        </nav>
+        <div className="border-t border-border p-3">
+          <p className="truncate px-1 pb-2 text-xs text-muted-foreground" title={user?.email}>
+            {user?.email}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Sign out
+          </Button>
         </div>
       </aside>
 

@@ -28,6 +28,12 @@ export function PatientsPerDoctorChart({ doctors }: { doctors: TopDoctor[] }) {
       <div className="h-80 w-full" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+            <defs>
+              <linearGradient id="doctorBarsFill" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="var(--color-chart-1)" />
+                <stop offset="100%" stopColor="var(--color-chart-2)" />
+              </linearGradient>
+            </defs>
             <CartesianGrid horizontal={false} stroke="var(--color-border)" />
             <XAxis
               type="number"
@@ -50,7 +56,7 @@ export function PatientsPerDoctorChart({ doctors }: { doctors: TopDoctor[] }) {
               // parameter is widened here rather than asserted at the call site.
               formatter={(value: unknown): [string, string] => [String(value), 'Patients']}
             />
-            <Bar dataKey="patients" fill="var(--color-chart-1)" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="patients" fill="url(#doctorBarsFill)" radius={[0, 6, 6, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
