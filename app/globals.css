@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/**
+ * Design tokens. Components reference the semantic name (`bg-card`, `text-muted-foreground`)
+ * rather than a raw palette step, so the dark theme below is the only place the actual
+ * colours change.
+ */
+:root {
+  --background: #f6f8fa;
+  --foreground: #0b1220;
+
+  --card: #ffffff;
+  --card-foreground: #0b1220;
+
+  --muted: #eef2f6;
+  --muted-foreground: #5b6b7f;
+
+  --border: #dde5ec;
+  --input: #cbd6e0;
+
+  --primary: #0d7d74;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e2f4f1;
+
+  --accent: #eef2f6;
+  --accent-foreground: #0b1220;
+
+  --destructive: #c02626;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fdeaea;
+
+  --ring: #0d7d74;
+
+  --chart-1: #0d7d74;
+  --chart-2: #3b6ea5;
+
+  --radius: 0.625rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a1017;
+    --foreground: #e6edf3;
+
+    --card: #121a23;
+    --card-foreground: #e6edf3;
+
+    --muted: #1a242f;
+    --muted-foreground: #93a4b6;
+
+    --border: #23303d;
+    --input: #33414f;
+
+    --primary: #2dd4bf;
+    --primary-foreground: #05201d;
+    --primary-soft: #12312e;
+
+    --accent: #1a242f;
+    --accent-foreground: #e6edf3;
+
+    --destructive: #f87171;
+    --destructive-foreground: #250b0b;
+    --destructive-soft: #2a1416;
+
+    --ring: #2dd4bf;
+
+    --chart-1: #2dd4bf;
+    --chart-2: #7aa7d9;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Requirements §2: focus must be visibly indicated everywhere, not just where a
+   component happened to remember to style it. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Keyboard users need a way past the sidebar; pointer users never see this. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
