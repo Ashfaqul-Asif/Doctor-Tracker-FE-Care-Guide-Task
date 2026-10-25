@@ -1,202 +1,338 @@
-# Doctor Tracker — Frontend (`doctor_tracker_Fe`)
+# Doctor Tracker
 
-Next.js 16 (App Router) + React 19 + TypeScript + Tailwind 4. An authenticated admin
-dashboard for the doctors, patients and analytics served by the
-[backend](../doctor_tracker_BE); the endpoint contract it codes against is
-[docs/api.md](../docs/api.md).
+An internal admin console for a small clinic: sign in, see where the roster
+stands at a glance, drill into any doctor or patient, and keep the two tables
+in sync. One admin user, two REST resources, two charts, and the plumbing to
+make all of that feel responsive on a phone and legible on a desktop.
 
-This is a standalone npm package — it installs, tests, builds and deploys on its own, with
-no workspace linking it to the backend. Run every command below from this directory.
+Two repos, deployed separately:
+
+| Part | Stack | Repo |
+|---|---|---|
+| Frontend | Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · TanStack Query · Zustand · Recharts | `doctor_tracker_Fe` |
+| Backend | Express 5 · TypeScript · Mongoose 8 · MongoDB Atlas · zod · bcryptjs · pino | `doctor_tracker_BE` |
+
+Live:
+- Frontend — `https://doctor-tracker-fe.vercel.app`
+- Backend — `https://doctor-tracker-be.vercel.app`
+
+Admin credentials (seeded):
+- Email — `admin@doctortracker.com`
+- Password — `Doctor123!`
 
 ---
 
 ## Setup
 
-**Prerequisites:** Node 20.10+ (20.19+ recommended), npm 10+, and the API running.
+**Prerequisites:** Node 20.10+ (20.19+ recommended), npm 10+, a MongoDB Atlas
+cluster (a free M0 is enough).
+
+Clone both repos next to each other. The backend boots first — the frontend
+cannot sign anyone in until the API is reachable.
+
+### 1. Backend
+
+```bash
+cd doctor_tracker_BE
+cp .env.example .env
+npm install
+npm run seed:admin        # creates the admin user
+npm run seed:doctors      # 200 doctors
+npm run seed:patients     # 10,000 patients, assigned non-uniformly
+npm run dev               # http://localhost:5000
+```
+
+`.env.example`:
+
+```ini
+NODE_ENV=development
+PORT=5000
+API_PREFIX=/api/v1
+
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/?retryWrites=true&w=majority
+MONGODB_DB_NAME=careguide
+
+CORS_ORIGINS=http://localhost:3000
+DEFAULT_TIMEZONE=Asia/Dhaka
+
+COOKIE_SECURE=false
+COOKIE_SAMESITE=lax
+
+SEED_ADMIN_EMAIL=admin@doctortracker.com
+SEED_ADMIN_NAME=Admin DoctorTracker
+SEED_ADMIN_PASSWORD=Doctor123!
+SEED_CONFIRM=careguide
+SEED_ENABLED=true
+
+LOG_LEVEL=debug
+```
+
+Only three fields are mandatory: `MONGODB_URI`, `CORS_ORIGINS`, and the three
+`SEED_ADMIN_*` values. The environment is validated by zod at boot
+(`src/config/env.ts`), so a missing or malformed variable stops the process
+immediately and names the field, rather than surfacing as a confusing 500 on
+the first request that touches it.
+
+### 2. Frontend
 
 ```bash
 cd doctor_tracker_Fe
 cp .env.example .env.local
 npm install
-npm run dev      # http://localhost:3000
+npm run dev               # http://localhost:3000
 ```
 
-| Variable | Notes |
+`.env.example`:
+
+```ini
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+```
+
+`NEXT_PUBLIC_*` variables are **inlined into the browser bundle at build
+time** — set them in Vercel *before* the build runs, not after. Changing one
+and clicking "Redeploy" without a new commit does nothing until you trigger
+a fresh build.
+
+### 3. Sign in
+
+Open `http://localhost:3000`, log in with the seeded admin above, and the
+dashboard, doctors list and patients list are the three nav items.
+
+### Scripts, both sides
+
+Each repo installs, lints, type-checks, tests and builds on its own — no
+workspace linking the two together.
+
+| Backend | Frontend |
 |---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | Origin of the API. Defaults to `http://localhost:4000` |
-
-`NEXT_PUBLIC_*` variables are **inlined into the browser bundle at build time** — they are
-public by definition, so nothing secret belongs in this file. Changing it after a build
-requires rebuilding, not just restarting.
-
-Sign in with the credentials the API's `npm run seed` printed — by default
-`admin@careguide.dev` / `Admin123!`. There is no sign-up screen: this is an internal admin
-tool and user #1 comes from the [admin seeder](../doctor_tracker_BE/README.md#seeders).
-
-> The API must be reachable before login will work, and its `CORS_ORIGINS` must list this
-> app's exact origin — credentials are enabled on every request, so a wildcard is rejected
-> by the browser rather than ignored.
+| `npm run dev` · `npm run build` · `npm start` | `npm run dev` · `npm run build` · `npm start` |
+| `npm run typecheck` · `npm run lint` | `npm run typecheck` · `npm run lint` |
+| `npm test` (Vitest + supertest) | `npm test` (Vitest + Testing Library) |
+| `npm run seed[:admin|:doctors|:patients]` | — |
+| `npm run explain` (query plans + latency) | — |
 
 ---
 
-## Routes
+## System architecture
 
-| Route | What it is |
-|---|---|
-| `/` | Redirects to `/dashboard` — there is no marketing surface |
-| `/login` | Email + password, the only anonymous page |
-| `/dashboard` | Totals, patients-per-doctor and registrations-over-time charts |
-| `/doctors` | Server-paginated roster with per-word name search and a hospital filter |
-| `/doctors/[id]` | One doctor, their details and their patients |
-| `/patients` | Server-paginated patients with search, condition filter and soft delete |
+```
+            Browser (Next.js app, Vercel)
+                      │
+       httpOnly cookie: careguide_session
+                      │
+                      ▼
+            Express API (Vercel)
+         ┌────────────┼─────────────┐
+         ▼            ▼             ▼
+      auth/       doctors/      patients/
+     (login,     (CRUD,        (CRUD,
+      logout)    search,       search,
+                 facets)       soft delete)
+                      │
+                      ▼
+              dashboard/
+         (summary $facet,
+          timeseries $dateTrunc)
+                      │
+                      ▼
+                MongoDB Atlas
+```
 
-Everything under `(dashboard)` is behind the auth gate in
-[`app/(dashboard)/layout.tsx`](<app/(dashboard)/layout.tsx>).
+**Request path.** The browser calls the API with `credentials: 'include'`.
+On every call, `authenticate` middleware reads the opaque session token out
+of the `careguide_session` cookie, hashes it, looks up the matching document
+in the `sessions` collection, and attaches the user to `req`. There is no
+JWT, no refresh rotation and no in-memory token — one cookie, one lookup.
 
-**The route guard runs on the client, not in middleware.** The refresh cookie is httpOnly
-and scoped to the API's origin, so Next middleware — which runs on *this* app's origin —
-cannot see it, and the access token exists only in memory. The layout reads the auth
-store's `status` instead, and renders "Restoring your session…" while `loading`, so a hard
-refresh doesn't flash the login page before the session comes back.
+**Error path.** Every mutation throws an `ApiError`; `errorHandler` is the
+only exit, so every failure leaves as `{ error: { code, message, details? } }`.
+The frontend's `lib/api.ts` wraps `fetch`, re-throws that shape as a typed
+`ApiError`, and `isValidation` tells field-level failures apart from system
+ones so forms can map `details` back onto their inputs.
 
----
-
-## State ownership
-
-Four kinds of state, four owners — deliberately no single global store:
+**State ownership, frontend.** Four kinds of state, four owners —
+deliberately no single global store:
 
 | State | Owner |
 |---|---|
-| Server data (doctors, patients, dashboard) | **TanStack Query** — its cache *is* the store |
-| Auth session (access token, user, status) | **Zustand** (`lib/stores/auth-store.ts`) |
-| Ephemeral global UI (mobile nav) | **Zustand** (`lib/stores/ui-store.ts`) |
+| Server data (doctors, patients, dashboard) | TanStack Query — its cache *is* the store |
+| Auth session | Zustand (`lib/stores/auth-store.ts`) |
+| Ephemeral global UI (mobile nav) | Zustand (`lib/stores/ui-store.ts`) |
 | Filters, search, pagination | **The URL** (`lib/hooks/use-query-params.ts`) |
-| Form state | **React Hook Form** + zod resolver |
+| Form state | React Hook Form + zod resolver |
 
-Server data is never mirrored into Zustand; two copies of a list is how a table ends up
-displaying something the server disagrees with.
+Server data is never mirrored into Zustand; two copies of a list is how a
+table ends up displaying something the server disagrees with.
 
-The auth store has **no `persist` middleware** — persisting the access token would put it
-in localStorage, which FR-2 rules out. Zustand earns its place over Context because
-`lib/api.ts` is a plain module, not a component: `useAuthStore.getState()` lets the fetch
-wrapper read the token and clear the session outside React, with no provider plumbing.
+**Layout, backend.**
 
-Filters live in the URL so a filtered view is shareable and the back button behaves; any
-filter change resets `page`, since changing a filter while on page 7 otherwise strands the
-user on an empty result set.
+```
+src/
+  config/env.ts        zod-validated environment, fails fast at boot
+  db/connect.ts        Mongoose connection + syncIndexes (dev/test only)
+  models/              User · Doctor · Patient · Session
+  middleware/          authenticate · requireRole · validate · errorHandler
+  modules/
+    auth/              login, logout, me
+    doctors/           list · create · detail · update · :id/patients
+    patients/          CRUD with soft delete
+    dashboard/         summary ($facet) · timeseries ($dateTrunc)
+  lib/                 ApiError · pagination · tokens · timeBuckets
+  scripts/seed*.ts     guarded, destructive-per-collection seeders
+  app.ts  server.ts  routes.ts
+```
 
----
-
-## The API layer
-
-Everything goes through [`lib/api.ts`](lib/api.ts), which is where four things are handled
-once instead of at every call site:
-
-- **The error envelope is normalised.** The API's `{ error: { code, message, details } }`
-  becomes a throwable `ApiError`, with `isValidation` telling field-level failures apart
-  from system ones so forms can map `details` onto inputs.
-- **A dead API is not "Failed to fetch".** `fetch` rejects only on network-level failures;
-  unwrapped that surfaces as the browser's bare message and bypasses every
-  `instanceof ApiError` branch in the UI, so it is wrapped with the URL it tried.
-- **Refresh is single-flight.** When a token expires every in-flight query 401s at once.
-  A shared promise collapses those into one `/api/auth/refresh` — without it, token
-  rotation would read the burst as reuse and revoke the whole session.
-- **Empty filters are omitted, not sent empty.** `?search=` is a validation error on the
-  API, not "no filter".
-
----
-
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Next dev server on :3000 |
-| `npm run build` | Production build |
-| `npm start` | Serve the production build |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint (`eslint-config-next`) |
-| `npm test` | Vitest + Testing Library |
-| `npm run test:watch` | The same suite in watch mode |
-| `npm run test:coverage` | With a v8 coverage report and thresholds |
-
----
-
-## Layout
+**Layout, frontend.**
 
 ```
 app/
-  (auth)/login/          the only anonymous route
-  (dashboard)/           layout.tsx is the auth gate
-    dashboard/           summary cards + both charts
-    doctors/             list · [id] detail
-    patients/            list with soft delete
-  error.tsx  global-error.tsx  layout.tsx  page.tsx
+  (auth)/login/        the only anonymous route
+  (dashboard)/         layout.tsx is the auth gate
+    dashboard/         totals + both charts
+    doctors/           list · [id] detail
+    patients/          list with soft delete
 components/
-  common/                app-shell · filter-bar · pagination · responsive-table
-                         · query-states · confirm-dialog · row-actions · cells
-  dashboard/             both charts · chart-theme · chart-data-table
-  doctors/  patients/    forms, columns, pickers, dialogs
-  ui/                    button · card · dialog · field · page-header · form-error
-  providers.tsx          QueryClientProvider + AuthBootstrap
+  common/              app-shell · filter-bar · pagination · responsive-table
+  dashboard/           patients-per-doctor-chart · registrations-chart
+  doctors/  patients/  forms, columns, pickers, dialogs
+  ui/                  button · card · dialog · field · page-header
 lib/
-  api.ts                 fetch wrapper: auth header, refresh, error envelope
-  query-keys.ts          one place every cache key is derived from
-  types.ts               response shapes, mirrored from docs/api.md by hand
-  hooks/                 use-auth · use-doctors · use-patients · use-dashboard
-                         · use-query-params · use-debounced-value
-  stores/                auth-store · ui-store
-tests/                   Vitest + Testing Library
+  api.ts               fetch wrapper
+  query-keys.ts        one place every cache key is derived from
+  hooks/  stores/  types.ts
+tests/                 Vitest + Testing Library
 ```
-
-Conventions worth knowing before editing:
-
-- **`@/*` resolves to this directory** (tsconfig path alias, mirrored in
-  `vitest.config.mts`). Import `@/lib/api`, never `../../lib/api`.
-- **Cache keys come from `lib/query-keys.ts`.** Hand-written key arrays are how a mutation
-  ends up invalidating nothing.
-- **Types are mirrored from the API by hand** in `lib/types.ts`. Nothing links the two
-  packages, so the compiler cannot catch drift — [docs/api.md](../docs/api.md) is the
-  contract both sides answer to. Change it there first.
-- **Every list renders loading, empty and error states**, via `components/common/query-states.tsx`.
-  A list that only handles the happy path is not finished.
-- **Every chart ships a visually hidden data table** (`chart-data-table.tsx`) so the
-  numbers reach screen readers. Recharts alone is not accessible.
-- **Search inputs are debounced** (`use-debounced-search-param.ts`) — the filtering itself
-  is the API's job, never the browser's.
 
 ---
 
-## Tests
+## Technical decisions
 
-```bash
-npm test
-```
+Two choices worth calling out, both because they are the ones a reviewer
+would push back on first.
 
-Vitest + Testing Library, no API required — `lib/api.ts` is mocked at the module boundary.
-The suites cover the API layer's refresh and error handling, the doctor form's validation
-and server-error mapping, the doctors page's loading/empty/error states and debounced
-search, and pagination.
+### 1. Opaque session cookies, not JWTs
 
-The environment is **happy-dom rather than jsdom**: jsdom 27 `require()`s an ESM-only CSS
-dependency, which only works from Node 20.19, and this project's stated floor is 20.10.
+JWT + refresh rotation is the usual answer for a React SPA talking to a
+separate API. This project does the opposite: one short, random,
+server-generated token, delivered in an httpOnly cookie, with the hash
+stored server-side in a `sessions` collection. The access token never
+exists in JavaScript on the client at all.
 
-```bash
-npm run test:coverage
-```
+Why:
 
-The thresholds in `vitest.config.mts` are a **ratchet against regression, not a target** —
-set just under what the suite covers today so a drop fails the build. Raise them as
-coverage grows; never lower them to make a build pass.
+- **One source of truth for "logged in".** Logout is `DELETE` on the
+  session document — the cookie is instantly dead everywhere, with no
+  "wait up to 15 minutes for the access token to expire" window. There is
+  no revocation list to maintain alongside a signing key.
+- **Nothing valuable in `localStorage`.** `localStorage` is reachable from
+  any script that runs on the page, including a compromised dependency,
+  and FR-2 of the brief rules it out explicitly. An httpOnly cookie is not.
+- **No single-flight refresh gymnastics.** With rotating refresh tokens, a
+  burst of parallel 401s all try to refresh at once; the server reads the
+  reuse and revokes the whole session. The usual fix is a shared in-flight
+  promise in the client. With one cookie there is no refresh and no burst,
+  so there is no gymnastics.
+- **`SameSite`/`Secure` do the heavy lifting.** With the API and the
+  frontend on different Vercel domains, the cookie is sent with
+  `SameSite=None; Secure` — which also means the browser enforces HTTPS on
+  every request carrying it. On localhost both flags relax to `Lax`/off.
+
+The trade-off is a round-trip to Mongo on every authenticated request —
+one indexed lookup by `tokenHash`. That is cheap, and it is the price for
+being able to kill a session in one write instead of waiting for a token
+to expire.
+
+### 2. Filters live in the URL, not component state
+
+Every list page — doctors, patients — reads its search term, filters and
+page number out of `useSearchParams` and writes them back with
+`router.replace`. There is no `useState` for "which page am I on" or
+"what did I search for".
+
+Why:
+
+- **A filtered view is shareable.** Paste a URL into Slack, land on exactly
+  the same page 7 with exactly the same "ENT, Dhaka" filter.
+- **The back button behaves.** Browser history is already a stack of
+  states; using it means the back button undoes a filter the way a user
+  expects, with no custom "undo" code.
+- **Hard refresh does not lose work.** Reload mid-list, land in the same
+  place.
+- **One source of truth for cache keys.** The TanStack Query key is
+  derived from the URL params, so two tabs with the same URL share one
+  cache entry instead of fetching twice.
+
+The invariant that keeps this from biting: any filter change resets `page`
+to 1. Changing a filter while on page 7 otherwise strands the user on an
+empty result set, and the fix for *that* is messier than just always
+resetting.
+
+A related knock-on: search inputs are debounced
+(`use-debounced-value.ts`) before they hit the URL. Writing to the URL on
+every keystroke floods history and makes the back button useless;
+debouncing the write, not just the query, keeps the history clean.
 
 ---
 
-## Deployment
+## Visual evidence
 
-Vercel (or any Node host running `npm run build && npm start`). Set
-`NEXT_PUBLIC_API_BASE_URL` to the API's public URL **before** the build — it is baked into
-the bundle.
+Desktop and mobile screenshots of the login, dashboard, doctors and
+patients views are below. Each one is captured from the deployed app.
 
-Once the two apps stop sharing a domain, two things change on the API side: `CORS_ORIGINS`
-must list this app's exact origin, and the refresh cookie needs `COOKIE_SAMESITE=none`
-with `COOKIE_SECURE=true`. Login working locally and failing in production is almost
-always one of those two.
+### Login
+
+> _Screenshot placeholder — desktop_
+>
+> `![Login — desktop](./docs/screenshots/login-desktop.png)`
+
+> _Screenshot placeholder — mobile_
+>
+> `![Login — mobile](./docs/screenshots/login-mobile.png)`
+
+### Dashboard
+
+> _Screenshot placeholder — desktop_
+>
+> `![Dashboard — desktop](./docs/screenshots/dashboard-desktop.png)`
+
+> _Screenshot placeholder — mobile_
+>
+> `![Dashboard — mobile](./docs/screenshots/dashboard-mobile.png)`
+
+### Doctors
+
+> _Screenshot placeholder — desktop_
+>
+> `![Doctors — desktop](./docs/screenshots/doctors-desktop.png)`
+
+> _Screenshot placeholder — mobile_
+>
+> `![Doctors — mobile](./docs/screenshots/doctors-mobile.png)`
+
+### Patients
+
+> _Screenshot placeholder — desktop_
+>
+> `![Patients — desktop](./docs/screenshots/patients-desktop.png)`
+
+> _Screenshot placeholder — mobile_
+>
+> `![Patients — mobile](./docs/screenshots/patients-mobile.png)`
+
+---
+
+## Deployment notes
+
+- **Vercel, both sides.** The frontend is a standard Next.js project; the
+  backend runs the compiled Express app from `dist/`.
+- **`NEXT_PUBLIC_API_BASE_URL` on Vercel must be set before building.** It
+  is baked into the JS bundle at build time. A "Redeploy" of an old
+  deployment reuses that deployment's original build — set the env var,
+  then push a fresh commit (or use "Deploy from main").
+- **Cross-domain cookies.** Once the two apps stop sharing a domain:
+  - API: `CORS_ORIGINS=https://doctor-tracker-fe.vercel.app`,
+    `COOKIE_SAMESITE=none`, `COOKIE_SECURE=true`.
+  - Login working locally and failing in production is almost always one
+    of those three.
+- **Atlas Network Access.** Allowlist Vercel's egress IPs (or `0.0.0.0/0`
+  for a demo cluster — this one is a demo cluster).
