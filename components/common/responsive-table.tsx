@@ -49,13 +49,13 @@ function ResponsiveTableInner<T>({
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead>
-            <tr className="border-b border-border text-left">
+            <tr className="border-b border-border bg-muted/40 text-left">
               {columns.map((column) => (
                 <th
                   key={column.key}
                   scope="col"
                   className={cn(
-                    'px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+                    'px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground',
                     column.className,
                   )}
                 >
@@ -63,7 +63,7 @@ function ResponsiveTableInner<T>({
                 </th>
               ))}
               {actions ? (
-                <th scope="col" className="px-4 py-2.5 text-right">
+                <th scope="col" className="px-5 py-3 text-right">
                   <span className="sr-only">Actions</span>
                 </th>
               ) : null}
@@ -71,14 +71,27 @@ function ResponsiveTableInner<T>({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={getRowKey(row)} className="border-b border-border last:border-0 hover:bg-accent/50">
+              <tr
+                key={getRowKey(row)}
+                className={cn(
+                  'border-b border-border/60 transition-colors last:border-0',
+                  'hover:bg-primary-soft/40',
+                )}
+              >
                 {columns.map((column) => (
-                  <td key={column.key} className={cn('px-4 py-3 align-middle', column.className)}>
+                  <td
+                    key={column.key}
+                    className={cn(
+                      'px-5 py-3.5 align-middle',
+                      column.primary && 'font-medium text-foreground',
+                      column.className,
+                    )}
+                  >
                     {column.cell(row)}
                   </td>
                 ))}
                 {actions ? (
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-5 py-3.5 text-right">
                     <div className="flex justify-end gap-1">{actions(row)}</div>
                   </td>
                 ) : null}
@@ -89,15 +102,15 @@ function ResponsiveTableInner<T>({
       </div>
 
       {/* Mobile */}
-      <ul className="divide-y divide-border md:hidden" aria-label={caption}>
+      <ul className="divide-y divide-border/60 md:hidden" aria-label={caption}>
         {rows.map((row) => {
           const primary = columns.find((column) => column.primary);
           const rest = columns.filter((column) => !column.primary && !column.hideOnMobile);
 
           return (
-            <li key={getRowKey(row)} className="space-y-2 px-4 py-3">
+            <li key={getRowKey(row)} className="space-y-2.5 px-4 py-3.5">
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 text-sm font-medium text-foreground">
+                <div className="min-w-0 text-sm font-semibold text-foreground">
                   {primary ? primary.cell(row) : null}
                 </div>
                 {actions ? <div className="flex shrink-0 gap-1">{actions(row)}</div> : null}
@@ -105,7 +118,7 @@ function ResponsiveTableInner<T>({
               <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                 {rest.map((column) => (
                   <div key={column.key} className="min-w-0">
-                    <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       {column.header}
                     </dt>
                     <dd className="truncate text-sm text-foreground">{column.cell(row)}</dd>
